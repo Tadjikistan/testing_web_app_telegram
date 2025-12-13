@@ -228,15 +228,16 @@ async def log_promotion_click(
 
 
 async def top_promotions_all_time(db_path: str, limit: int = 10) -> List[Tuple]:
-    """Get top promotions by redirect clicks (action='redirect')"""
+    """Get top promotions by redirect clicks (action='redirect'), excluding zero clicks"""
     async with aiosqlite.connect(db_path) as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         cursor = await db.execute(
             """
             SELECT p.id, COUNT(c.id) as cnt
             FROM promotions p
-            LEFT JOIN promotion_clicks c ON c.promotion_id = p.id AND c.action = 'redirect'
+            INNER JOIN promotion_clicks c ON c.promotion_id = p.id AND c.action = 'redirect'
             GROUP BY p.id
+            HAVING COUNT(c.id) > 0
             ORDER BY cnt DESC
             LIMIT ?
             """,
