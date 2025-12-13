@@ -1,365 +1,19 @@
 import asyncio
-import inspect
-import json
 import os
-from typing import Optional
 
 import aiofiles
 import aiohttp
 from aiohttp import web
-from aiogram import Bot, Dispatcher, F, Router
-from aiogram.enums import ParseMode
+from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
-from aiogram.filters import CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (
-    CallbackQuery,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-)
+from aiogram.enums import ParseMode
 
 from app.config import load_settings
 from app import db
 
-router = Router()
 settings = load_settings()
+# Bot instance only needed for getting file URLs
 bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher()
-dp.include_router(router)
-
-# Web server for HTML files and API
-web_app = None
-web_runner = None
-
-# ===== FSM States =====
-class AddPromo(StatesGroup):
-    preview_photo = State()
-    title = State()
-    description = State()
-    photo = State()
-    link = State()
-    confirm = State()
-
-
-class EditPromo(StatesGroup):
-    promo_id = State()
-    field = State()
-    new_value = State()
-
-
-class DeletePromo(StatesGroup):
-    promo_id = State()
-
-
-# ===== Helper Functions =====
-async def ensure_user(user_id: int):
-    await db.register_user(settings.db_path, user_id)
-
-
-def is_admin(user_id: int) -> bool:
-    return user_id == settings.admin_id
-
-
-def admin_only(func):
-    sig = inspect.signature(func)
-    func_params = sig.parameters
-
-    async def wrapper(event, *args, **kwargs):
-        filtered_kwargs = {
-            name: value for name, value in kwargs.items() if name in func_params
-        }
-        user_id = event.from_user.id
-        if not is_admin(user_id):
-            if isinstance(event, CallbackQuery):
-                await event.answer("Admins only", show_alert=True)
-            else:
-                await event.answer("Admins only.")
-            return
-        return await func(event, *args, **filtered_kwargs)
-
-    return wrapper
-
-
-# ===== Bot Handlers =====
-@router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
-    await state.clear()
-    await ensure_user(message.from_user.id)
-    
-    # Get web app URL (you'll need to set this in your environment)
-    web_app_url = os.getenv("WEB_APP_URL", "https://your-domain.com")
-    
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🎁 Открыть приложение", web_app=WebAppInfo(url=f"{web_app_url}/first_card.html"))]
-        ],
-        resize_keyboard=True
-    )
-    
-    if is_admin(message.from_user.id):
-        keyboard.keyboard.append([KeyboardButton(text="🛠 Admin panel"), KeyboardButton(text="📊 Statistics")])
-    
-    await message.answer(
-        "Добро пожаловать! Нажмите кнопку, чтобы открыть приложение и выбрать подарок.",
-        reply_markup=keyboard,
-    )
-
-
-@router.message(F.text == "🛠 Admin panel")
-@admin_only
-async def open_admin_panel(message: Message):
-    markup = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Add promotion", callback_data="admin:add_promo")],
-            [InlineKeyboardButton(text="✏️ Edit promotion", callback_data="admin:edit_promo")],
-            [InlineKeyboardButton(text="🗑 Delete promotion", callback_data="admin:del_promo")],
-        ]
-    )
-    await message.answer("Admin panel:", reply_markup=markup)
-
-
-@router.message(F.text == "📊 Statistics")
-@admin_only
-async def stats(message: Message):
-    data = await db.stats(settings.db_path)
-    lines = [f"📊 Statistics", f"New users today: {data['new_users']}"]
-    lines.append("\nRedirect clicks:")
-    for title, cnt in data["redirect_clicks"]:
-        lines.append(f"- {title}: {cnt}")
-    await message.answer("\n".join(lines))
-
-
-# ===== Admin: Add Promotion =====
-@router.callback_query(F.data == "admin:add_promo")
-@admin_only
-async def admin_add_promo(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(AddPromo.preview_photo)
-    await callback.message.answer("Send preview image for the card (photo). You can skip with /skip.")
-    await callback.answer()
-
-
-@router.message(AddPromo.preview_photo, F.photo)
-@admin_only
-async def addpromo_preview_photo(message: Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    await state.update_data(preview_image_file_id=file_id)
-    await state.set_state(AddPromo.title)
-    await message.answer("Send promotion title:")
-
-
-@router.message(AddPromo.preview_photo, F.text == "/skip")
-@admin_only
-async def addpromo_skip_preview_photo(message: Message, state: FSMContext):
-    await state.update_data(preview_image_file_id=None)
-    await state.set_state(AddPromo.title)
-    await message.answer("Send promotion title:")
-
-
-@router.message(AddPromo.title)
-@admin_only
-async def addpromo_title(message: Message, state: FSMContext):
-    await state.update_data(title=message.text.strip())
-    await state.set_state(AddPromo.description)
-    await message.answer("Send promotion description:")
-
-
-@router.message(AddPromo.description)
-@admin_only
-async def addpromo_description(message: Message, state: FSMContext):
-    await state.update_data(description=message.text.strip())
-    await state.set_state(AddPromo.photo)
-    await message.answer("Send promotion image for modal (photo). You can skip with /skip.")
-
-
-@router.message(AddPromo.photo, F.photo)
-@admin_only
-async def addpromo_photo(message: Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    await state.update_data(image_file_id=file_id)
-    await state.set_state(AddPromo.link)
-    await message.answer("Send promotion link (URL):")
-
-
-@router.message(AddPromo.photo, F.text == "/skip")
-@admin_only
-async def addpromo_skip_photo(message: Message, state: FSMContext):
-    await state.update_data(image_file_id=None)
-    await state.set_state(AddPromo.link)
-    await message.answer("Send promotion link (URL):")
-
-
-@router.message(AddPromo.link)
-@admin_only
-async def addpromo_link(message: Message, state: FSMContext):
-    await state.update_data(link=message.text.strip())
-    data = await state.get_data()
-    preview = f"<b>{data['title']}</b>\n\n{data['description']}\n\n{data['link']}"
-    await state.set_state(AddPromo.confirm)
-    await message.answer(
-        "Preview:\n" + preview,
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="✅ Publish", callback_data="admin:add_promo:yes"),
-                    InlineKeyboardButton(text="❌ Cancel", callback_data="admin:add_promo:no"),
-                ]
-            ]
-        ),
-    )
-
-
-@router.callback_query(AddPromo.confirm, F.data == "admin:add_promo:yes")
-@admin_only
-async def addpromo_confirm(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    promo_id = await db.add_promotion(
-        settings.db_path,
-        title=data["title"],
-        description=data["description"],
-        link=data["link"],
-        preview_image_file_id=data.get("preview_image_file_id"),
-        image_file_id=data.get("image_file_id"),
-    )
-    await callback.message.answer(f"Promotion #{promo_id} published.")
-    await state.clear()
-    await callback.answer()
-
-
-@router.callback_query(AddPromo.confirm, F.data == "admin:add_promo:no")
-@admin_only
-async def addpromo_cancel(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.answer("Canceled.")
-    await callback.answer()
-
-
-# ===== Admin: Edit Promotion =====
-@router.callback_query(F.data == "admin:edit_promo")
-@admin_only
-async def admin_edit_promo(callback: CallbackQuery, state: FSMContext):
-    promotions = await db.list_promotions(settings.db_path)
-    if not promotions:
-        await callback.answer("No promotions", show_alert=True)
-        return
-    rows = []
-    for promo in promotions:
-        promo_id, title, *_ = promo
-        rows.append([InlineKeyboardButton(text=title, callback_data=f"admin_edit_promo:{promo_id}")])
-    await state.set_state(EditPromo.promo_id)
-    await callback.message.answer("Choose promotion:", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
-    await callback.answer()
-
-
-@router.callback_query(EditPromo.promo_id, F.data.startswith("admin_edit_promo:"))
-@admin_only
-async def editpromo_choose_promo(callback: CallbackQuery, state: FSMContext):
-    promo_id = int(callback.data.split(":")[1])
-    await state.update_data(promo_id=promo_id)
-    await state.set_state(EditPromo.field)
-    markup = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Preview Image", callback_data="admin:edit_field:preview_image_file_id"),
-                InlineKeyboardButton(text="Title", callback_data="admin:edit_field:title"),
-            ],
-            [
-                InlineKeyboardButton(text="Description", callback_data="admin:edit_field:description"),
-                InlineKeyboardButton(text="Image", callback_data="admin:edit_field:image_file_id"),
-            ],
-            [InlineKeyboardButton(text="Link", callback_data="admin:edit_field:link")],
-        ]
-    )
-    await callback.message.answer("What do you want to change?", reply_markup=markup)
-    await callback.answer()
-
-
-@router.callback_query(EditPromo.field, F.data.startswith("admin:edit_field:"))
-@admin_only
-async def editpromo_choose_field(callback: CallbackQuery, state: FSMContext):
-    field = callback.data.split(":")[2]
-    await state.update_data(field=field)
-    await state.set_state(EditPromo.new_value)
-    await callback.message.answer("Send new value:")
-    await callback.answer()
-
-
-@router.message(EditPromo.new_value, F.photo)
-@admin_only
-async def editpromo_new_photo(message: Message, state: FSMContext):
-    data = await state.get_data()
-    field = data.get("field")
-    if field not in ("image_file_id", "preview_image_file_id"):
-        await message.answer("Send text value.")
-        return
-    file_id = message.photo[-1].file_id
-    await db.update_promotion_field(settings.db_path, data["promo_id"], field, file_id)
-    await message.answer("Promotion updated.")
-    await state.clear()
-
-
-@router.message(EditPromo.new_value)
-@admin_only
-async def editpromo_new_value(message: Message, state: FSMContext):
-    data = await state.get_data()
-    field = data.get("field")
-    if not field:
-        await message.answer("Field is not selected.")
-        return
-    await db.update_promotion_field(settings.db_path, data["promo_id"], field, message.text.strip())
-    await message.answer("Promotion updated.")
-    await state.clear()
-
-
-# ===== Admin: Delete Promotion =====
-@router.callback_query(F.data == "admin:del_promo")
-@admin_only
-async def admin_delete_promo(callback: CallbackQuery, state: FSMContext):
-    promotions = await db.list_promotions(settings.db_path)
-    if not promotions:
-        await callback.answer("No promotions", show_alert=True)
-        return
-    await state.set_state(DeletePromo.promo_id)
-    rows = []
-    for promo in promotions:
-        promo_id, title, *_ = promo
-        rows.append([InlineKeyboardButton(text=title, callback_data=f"admin_delpromo_promo:{promo_id}")])
-    await callback.message.answer("Choose promotion:", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
-    await callback.answer()
-
-
-@router.callback_query(DeletePromo.promo_id, F.data.startswith("admin_delpromo_promo:"))
-@admin_only
-async def deletepromo_choose(callback: CallbackQuery, state: FSMContext):
-    promo_id = int(callback.data.split(":")[1])
-    await state.update_data(promo_id=promo_id)
-    markup = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="✅ Confirm", callback_data=f"del_promo:yes:{promo_id}"),
-                InlineKeyboardButton(text="❌ Cancel", callback_data=f"del_promo:no:{promo_id}"),
-            ]
-        ]
-    )
-    await callback.message.answer("Confirm deletion?", reply_markup=markup)
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("del_promo:"))
-@admin_only
-async def deletepromo_confirm(callback: CallbackQuery, state: FSMContext):
-    _, decision, promo_id = callback.data.split(":")
-    if decision == "yes":
-        await db.delete_promotion(settings.db_path, int(promo_id))
-        await callback.message.answer("Promotion deleted.")
-    else:
-        await callback.message.answer("Canceled.")
-    await state.clear()
-    await callback.answer()
 
 
 # ===== Web Server Handlers =====
@@ -373,7 +27,7 @@ async def serve_html(request):
     async with aiofiles.open(filepath, "r", encoding="utf-8") as f:
         content = await f.read()
     
-    # Also inject Telegram WebApp script
+    # Inject Telegram WebApp script
     if "telegram-web-app.js" not in content and filename in ("first_card.html", "list_of_card.html"):
         script_tag = '<script src="https://telegram.org/js/telegram-web-app.js"></script>'
         content = content.replace("</head>", f"{script_tag}\n</head>")
@@ -505,11 +159,16 @@ async def main() -> None:
     await db.init_db(settings.db_path)
     
     # Start web server
-    global web_runner
     web_runner = await init_web_server()
     
-    # Start bot
-    await dp.start_polling(bot)
+    print("Web app is running. Press Ctrl+C to stop.")
+    
+    # Keep the server running
+    try:
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        await web_runner.cleanup()
 
 
 if __name__ == "__main__":
