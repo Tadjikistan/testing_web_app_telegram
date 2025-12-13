@@ -222,7 +222,7 @@ async def cmd_start(message: Message, state: FSMContext):
     
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🎁 Открыть приложение", web_app=WebAppInfo(url=f"{web_app_url}/first_card.html"))]
+            [KeyboardButton(text="🎁 Открыть приложение", web_app=WebAppInfo(url=web_app_url))]
         ],
         resize_keyboard=True
     )
