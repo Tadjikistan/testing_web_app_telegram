@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Выбор подарка</title>
+
+<style>
+:root {
+  --blue: #2430b8;
+  --blue-dark: #1a218f;
+  --green: #1db46a;
+  --bg: #f3f5fb;
+  --text: #111;
+  --muted: #6b7280;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ===== СИНЯЯ ШАПКА ===== */
+.header {
+  background: linear-gradient(180deg, #2b38d6, var(--blue));
+  color: #fff;
+  padding: 40px 16px 120px;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.header p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  opacity: .85;
+}
+
+/* ===== ТАЙМЕР ===== */
+.timer {
+  margin-top: 16px;
+  background: #fff;
+  color: #111;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ===== БЕЛЫЙ СЛОЙ ===== */
+.content {
+  margin-top: -80px;
+  padding: 24px 16px 40px;
+  position: relative;
+  z-index: 2;
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  min-height: calc(100vh - 120px);
+}
+
+.card-list {
+  max-width: 420px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fff;
+}
+
+/* ===== КАРТОЧКА ПОДАРКА ===== */
+.gift {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  cursor: pointer;
+  transition: box-shadow .25s, transform .2s;
+}
+
+.gift:hover {
+  box-shadow: 0 12px 30px rgba(0,0,0,.12);
+  transform: translateY(-2px);
+}
+
+.logo {
+  min-width: 92px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #fff;
+}
+
+.logo.green { background: #0b2f2f; }
+.logo.blue { background: #0d2d9a; }
+.logo.orange { background: #111; }
+.logo.yellow { background: #ffe031; color:#111; }
+
+.gift-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gift-icon {
+  margin-left: auto;
+  font-size: 20px;
+  color: #cbd5e1;
+  transition: color .25s;
+}
+
+.gift:hover .gift-icon {
+  color: #2563eb;
+}
+
+/* ===== ХИТ ===== */
+.hit {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ===== МОДАЛКА ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-card {
+  background: #fff;
+  width: 92%;
+  max-width: 380px;
+  max-height: 90vh;
+  border-radius: 22px;
+  overflow-y: auto;
+  padding: 16px;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.modal h2 {
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+.primary-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: 14px;
+  background: #2430b8;
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  margin-top: 14px;
+}
+</style>
+</head>
+
+<body>
+
+<header class="header">
+  <h1>Выберите (1) подарок</h1>
+  <p>У вас есть 5 минут</p>
+
+  <div class="timer" id="timer">
+    ⏱ Осталось 04:59
+  </div>
+</header>
+
+<section class="content">
+  <div class="card-list" id="cardList">
+    <!-- Cards will be loaded dynamically -->
+  </div>
+</section>
+
+<!-- ===== МОДАЛКА ===== -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="modal-close" onclick="closeModal()">✕</div>
+    <div id="modalContent">
+      <!-- Modal content will be loaded dynamically -->
+    </div>
+  </div>
+</div>
+
+<script>
+// Initialize Telegram WebApp
+if (window.Telegram && window.Telegram.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+}
+
+const API_BASE = window.location.origin;
+
+/* ===== ТАЙМЕР ===== */
+let seconds = 299;
+const timerEl = document.getElementById('timer');
+
+setInterval(() => {
+  const m = String(Math.floor(seconds / 60)).padStart(2,'0');
+  const s = String(seconds % 60).padStart(2,'0');
+  timerEl.textContent = `⏱ Осталось ${m}:${s}`;
+  if (seconds > 0) seconds--;
+}, 1000);
+
+/* ===== ЗАГРУЗКА КАРТОЧЕК ===== */
+let topPromotionIds = [];
+
+async function loadPromotions() {
+  try {
+    const response = await fetch(`${API_BASE}/api/promotions`);
+    const data = await response.json();
+    
+    // Get top promotions for HIT marks
+    const topResponse = await fetch(`${API_BASE}/api/top-promotions`);
+    const topData = await topResponse.json();
+    topPromotionIds = topData.map(p => p.id);
+    
+    renderPromotions(data.promotions);
+  } catch (error) {
+    console.error('Error loading promotions:', error);
+    document.getElementById('cardList').innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">Ошибка загрузки подарков</div>';
+  }
+}
+
+function renderPromotions(promotions) {
+  const cardList = document.getElementById('cardList');
+  if (promotions.length === 0) {
+    cardList.innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">Подарков пока нет</div>';
+    return;
+  }
+  
+  cardList.innerHTML = promotions.map(promo => {
+    const isHit = topPromotionIds.includes(promo.id);
+    const logoClass = ['green', 'blue', 'orange', 'yellow'][promo.id % 4];
+    const logoText = promo.title.substring(0, 4).toUpperCase();
+    
+    let logoHtml = '';
+    if (promo.preview_image_file_id) {
+      logoHtml = `<img src="${API_BASE}/api/image/${promo.preview_image_file_id}" 
+        style="width:92px;height:56px;border-radius:12px;object-fit:cover;" 
+        onerror="this.outerHTML='<div class=\\'logo ${logoClass}\\'>${logoText}</div>'">`;
+    } else {
+      logoHtml = `<div class="logo ${logoClass}">${logoText}</div>`;
+    }
+    
+    return `
+      <div class="gift" onclick="openModal(${promo.id})">
+        ${isHit ? '<span class="hit">ХИТ</span>' : ''}
+        ${logoHtml}
+        <div class="gift-title">${promo.title}</div>
+        <div class="gift-icon">🎁</div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ===== МОДАЛКА ===== */
+async function openModal(promoId) {
+  try {
+    const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
+    const promo = await response.json();
+    
+    const modalContent = document.getElementById('modalContent');
+    const logoClass = ['green', 'blue', 'orange', 'yellow'][promoId % 4];
+    const logoText = promo.title.substring(0, 4).toUpperCase();
+    
+    let imageHtml = '';
+    if (promo.image_file_id) {
+      imageHtml = `<img src="${API_BASE}/api/image/${promo.image_file_id}" 
+        style="width:100%;border-radius:12px;margin-bottom:12px;max-height:300px;object-fit:cover;" 
+        onerror="this.style.display='none'">`;
+    }
+    
+    modalContent.innerHTML = `
+      <div class="logo ${logoClass}" style="margin-bottom:12px;">${logoText}</div>
+      ${imageHtml}
+      <h2>${promo.title}</h2>
+      <p style="color:#6b7280;margin-top:8px;line-height:1.5;">${promo.description}</p>
+      <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">Получить подарок</button>
+    `;
+    
+    document.getElementById('modal').classList.add('active');
+  } catch (error) {
+    console.error('Error loading promotion:', error);
+    alert('Ошибка загрузки подарка');
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+async function claimPromotion(promoId, link) {
+  try {
+    // Get user ID from Telegram WebApp if available
+    let userId = null;
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+      userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
+    }
+    
+    // Log the redirect click
+    await fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'redirect', user_id: userId})
+    });
+    
+    // Redirect to the promotion link
+    window.open(link, '_blank');
+    closeModal();
+  } catch (error) {
+    console.error('Error logging click:', error);
+    // Still redirect even if logging fails
+    window.open(link, '_blank');
+    closeModal();
+  }
+}
+
+
+// Load promotions on page load
+loadPromotions();
+</script>
+
+</body>
+</html>

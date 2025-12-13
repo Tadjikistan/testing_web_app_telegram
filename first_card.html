@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Рулетка подарков</title>
+
+<style>
+:root {
+  --bg: #000;
+  --card-bg: #fff;
+  --muted: #777;
+  --blue: #3b5cff;
+  --green: #1db46a;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+
+/* ===== Карточка ===== */
+.card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--card-bg);
+  border-radius: 22px;
+  padding: 22px;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* ===== Текст ===== */
+.title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 6px 0 18px;
+}
+
+/* ===== Рулетка ===== */
+.roulette-wrapper {
+  background: #f2f3f5;
+  border-radius: 18px;
+  padding: 20px 0;
+  margin-bottom: 18px;
+  height: 140px;
+  overflow: hidden;
+  position: relative;
+}
+
+.roulette-list {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.roulette-item {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--blue);
+  height: 56px;
+  line-height: 56px;
+  text-align: center;
+  transition: filter 0.2s, opacity 0.2s, transform 0.2s;
+}
+
+.roulette-item.blur {
+  filter: blur(3px);
+  opacity: 0.35;
+  transform: scale(0.85);
+}
+
+/* ===== Кнопка ===== */
+.button {
+  position: relative;
+  height: 54px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #e6e6e6;
+}
+
+.button-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #4d6bff, #7a8cff);
+}
+
+.button-text {
+  position: relative;
+  z-index: 2;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 54px;
+  text-align: center;
+  user-select: none;
+}
+
+.button.active {
+  background: var(--green);
+  cursor: pointer;
+}
+
+.button.active .button-fill {
+  width: 100%;
+  background: var(--green);
+}
+
+/* ===== Конфетти ===== */
+.confetti {
+  position: fixed;
+  top: -10px;
+  width: 8px;
+  height: 12px;
+  animation: fall linear forwards;
+  z-index: 1;
+}
+
+@keyframes fall {
+  to {
+    transform: translateY(110vh) rotate(360deg);
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+  <div id="title" class="title">Еще чуть-чуть!</div>
+  <div id="subtitle" class="subtitle">Определяем количество подарков!</div>
+
+  <div class="roulette-wrapper">
+    <div id="rouletteList" class="roulette-list"></div>
+  </div>
+
+  <div id="btn" class="button">
+    <div id="btnFill" class="button-fill"></div>
+    <div id="btnText" class="button-text">
+      До подарков осталось еще чуть-чуть!
+    </div>
+  </div>
+</div>
+
+<script>
+// Initialize Telegram WebApp
+if (window.Telegram && window.Telegram.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+}
+
+const rouletteList = document.getElementById('rouletteList');
+const btn = document.getElementById('btn');
+const btnFill = document.getElementById('btnFill');
+const btnText = document.getElementById('btnText');
+const title = document.getElementById('title');
+const subtitle = document.getElementById('subtitle');
+
+const DURATION = 60; // 5 minutes
+const FINAL_NUMBER = 102;
+const start = Date.now();
+const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes
+
+let confettiInterval;
+let timeoutReached = false;
+
+/* ===== Рулетка ===== */
+function renderRoulette(center) {
+  rouletteList.innerHTML = '';
+  for (let i = -2; i <= 2; i++) {
+    const el = document.createElement('div');
+    el.className = 'roulette-item' + (i !== 0 ? ' blur' : '');
+    el.textContent = center + i;
+    rouletteList.appendChild(el);
+  }
+}
+
+const rouletteInterval = setInterval(() => {
+  renderRoulette(Math.floor(Math.random() * 500) + 1);
+}, 80);
+
+/* ===== Прогресс ===== */
+const progressInterval = setInterval(() => {
+  const elapsed = Date.now() - start;
+  const percent = Math.min((elapsed / DURATION) * 100, 100);
+  btnFill.style.width = percent + '%';
+
+  if (elapsed >= DURATION && !timeoutReached) {
+    clearInterval(progressInterval);
+    clearInterval(rouletteInterval);
+    finish();
+  }
+  
+  // Check for timeout (5 minutes without clicking)
+  if (elapsed >= TIMEOUT_DURATION && !timeoutReached) {
+    timeoutReached = true;
+    clearInterval(progressInterval);
+    clearInterval(rouletteInterval);
+    showTimeout();
+  }
+}, 16);
+
+function finish() {
+  if (timeoutReached) return;
+  
+  renderRoulette(FINAL_NUMBER);
+
+  title.textContent = 'Ура! 🎁';
+  subtitle.innerHTML = 'У вас есть <b>5 минут</b> на выбор';
+
+  btn.classList.add('active');
+  btnText.textContent = 'Выбрать подарок';
+
+  startInfiniteConfetti();
+
+  btn.addEventListener('click', () => {
+    // Navigate to list page
+    window.location.href = 'list_of_card.html';
+  });
+}
+
+function showTimeout() {
+  renderRoulette(FINAL_NUMBER);
+  
+  title.textContent = 'Время истекло ⏰';
+  subtitle.innerHTML = 'Пожалуйста, перезапустите приложение, чтобы выбрать подарок';
+  
+  btn.classList.remove('active');
+  btnText.textContent = 'Перезапустите приложение';
+  
+  btn.addEventListener('click', () => {
+    if (window.Telegram && window.Telegram.WebApp) {
+      // Close and ask user to reopen
+      window.Telegram.WebApp.showAlert('Пожалуйста, перезапустите приложение');
+      setTimeout(() => {
+        window.Telegram.WebApp.close();
+      }, 2000);
+    }
+  });
+}
+
+/* ===== Бесконечное конфетти ===== */
+function startInfiniteConfetti() {
+  confettiInterval = setInterval(() => {
+    for (let i = 0; i < 12; i++) {
+      const el = document.createElement('div');
+      el.className = 'confetti';
+      el.style.left = Math.random() * 100 + 'vw';
+      el.style.background = `hsl(${Math.random() * 360}, 80%, 60%)`;
+      el.style.animationDuration = 3 + Math.random() * 3 + 's';
+      el.style.opacity = Math.random();
+      document.body.appendChild(el);
+
+      setTimeout(() => el.remove(), 6000);
+    }
+  }, 400);
+}
+</script>
+
+</body>
+</html>
