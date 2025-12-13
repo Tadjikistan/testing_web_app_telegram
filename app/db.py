@@ -10,7 +10,48 @@ def _utcnow() -> str:
 
 async def init_db(db_path: str) -> None:
     async with aiosqlite.connect(db_path) as db:
-        await db.execute("PRAGMA foreign_keys = ON;")
+        # Disable foreign keys for migration
+        await db.execute("PRAGMA foreign_keys = OFF;")
+        
+        # Migration: drop old catalog tables and recreate promotions table
+        old_promotions = None
+        try:
+            # Check if old promotions table exists with catalog_id
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='promotions'"
+            )
+            old_promotions_exists = await cursor.fetchone()
+            
+            if old_promotions_exists:
+                # Check if it has catalog_id column
+                cursor = await db.execute("PRAGMA table_info(promotions)")
+                columns = await cursor.fetchall()
+                has_catalog_id = any(col[1] == 'catalog_id' for col in columns)
+                
+                if has_catalog_id:
+                    # Backup existing promotions data
+                    cursor = await db.execute(
+                        "SELECT id, title, description, link, image_file_id, created_at FROM promotions"
+                    )
+                    old_promotions = await cursor.fetchall()
+                    
+                    # Drop old tables
+                    await db.execute("DROP TABLE IF EXISTS promotion_clicks;")
+                    await db.execute("DROP TABLE IF EXISTS catalog_clicks;")
+                    await db.execute("DROP TABLE IF EXISTS catalogs;")
+                    await db.execute("DROP TABLE IF EXISTS promotions;")
+                else:
+                    # Just drop catalog tables
+                    await db.execute("DROP TABLE IF EXISTS catalog_clicks;")
+                    await db.execute("DROP TABLE IF EXISTS catalogs;")
+            else:
+                # Drop catalog tables if they exist
+                await db.execute("DROP TABLE IF EXISTS catalog_clicks;")
+                await db.execute("DROP TABLE IF EXISTS catalogs;")
+        except Exception as e:
+            print(f"Migration warning: {e}")
+        
+        # Create tables
         await db.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -43,19 +84,36 @@ async def init_db(db_path: str) -> None:
             CREATE INDEX IF NOT EXISTS idx_promotion_clicks_action ON promotion_clicks (action);
             """
         )
-        # Migration: drop old catalog tables if they exist
+        
+        # Restore old promotions data if we backed it up
+        if old_promotions:
+            try:
+                for promo in old_promotions:
+                    promo_id, title, description, link, image_file_id, created_at = promo
+                    await db.execute(
+                        """
+                        INSERT INTO promotions (id, title, description, link, preview_image_file_id, image_file_id, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (promo_id, title, description, link, image_file_id, image_file_id, created_at)
+                    )
+            except Exception as e:
+                print(f"Data restoration warning: {e}")
+        
+        # Add preview_image_file_id if it doesn't exist (for existing promotions table)
         try:
-            await db.execute("DROP TABLE IF EXISTS catalog_clicks;")
-            await db.execute("DROP TABLE IF EXISTS catalogs;")
-            # Add preview_image_file_id if it doesn't exist
             await db.execute("ALTER TABLE promotions ADD COLUMN preview_image_file_id TEXT;")
         except Exception:
             pass
+        
         # Ensure claimed column exists for older DBs
         try:
             await db.execute("ALTER TABLE users ADD COLUMN claimed INTEGER DEFAULT 0;")
         except Exception:
             pass
+        
+        # Re-enable foreign keys
+        await db.execute("PRAGMA foreign_keys = ON;")
         await db.commit()
 
 
