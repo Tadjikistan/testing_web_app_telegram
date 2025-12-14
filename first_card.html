@@ -176,7 +176,7 @@ const btnText = document.getElementById('btnText');
 const title = document.getElementById('title');
 const subtitle = document.getElementById('subtitle');
 
-const DURATION = 300; // 5 minutes
+const DURATION = 5*1000; // 5 minutes
 const FINAL_NUMBER = 102;
 const start = Date.now();
 const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -187,12 +187,32 @@ let timeoutReached = false;
 /* ===== Рулетка ===== */
 function renderRoulette(center) {
   rouletteList.innerHTML = '';
-  for (let i = -2; i <= 2; i++) {
-    const el = document.createElement('div');
-    el.className = 'roulette-item' + (i !== 0 ? ' blur' : '');
-    el.textContent = center + i;
-    rouletteList.appendChild(el);
+
+  const used = new Set([center]);
+
+  function rand() {
+    let n;
+    do {
+      n = Math.floor(Math.random() * 500) + 1;
+    } while (used.has(n));
+    used.add(n);
+    return n;
   }
+
+  const numbers = [
+    rand(),
+    rand(),
+    center,
+    rand(),
+    rand()
+  ];
+
+  numbers.forEach((num, i) => {
+    const el = document.createElement('div');
+    el.className = 'roulette-item' + (i !== 2 ? ' blur' : '');
+    el.textContent = num;
+    rouletteList.appendChild(el);
+  });
 }
 
 const rouletteInterval = setInterval(() => {

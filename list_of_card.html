@@ -240,15 +240,26 @@ if (window.Telegram && window.Telegram.WebApp) {
 const API_BASE = window.location.origin;
 
 /* ===== ТАЙМЕР ===== */
-let seconds = 299;
+let time = 300000; // 299 секунд = 299000 мс
 const timerEl = document.getElementById('timer');
 
-setInterval(() => {
-  const m = String(Math.floor(seconds / 60)).padStart(2,'0');
-  const s = String(seconds % 60).padStart(2,'0');
-  timerEl.textContent = `⏱ Осталось ${m}:${s}`;
-  if (seconds > 0) seconds--;
-}, 1000);
+const interval = setInterval(() => {
+  const minutes = Math.floor(time / 60000);
+  const seconds = Math.floor((time % 60000) / 1000);
+  const ms = Math.floor((time % 1000) / 10); // две цифры миллисекунд
+
+  const m = String(minutes).padStart(2, '0');
+  const s = String(seconds).padStart(2, '0');
+  const msStr = String(ms).padStart(2, '0');
+
+  timerEl.textContent = `⏱ Осталось ${m}:${s}.${msStr}`;
+
+  if (time <= 0) {
+    clearInterval(interval);
+  } else {
+    time -= 10;
+  }
+}, 10);
 
 /* ===== ЗАГРУЗКА КАРТОЧЕК ===== */
 let topPromotionIds = [];
