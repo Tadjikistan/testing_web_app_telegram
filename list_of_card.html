@@ -86,9 +86,8 @@ body {
 .gift {
   background: #fff;
   border-radius: 18px;
-  /* Убрали общий padding для flex-контейнера, оставили только для элементов */
   padding: 14px; 
-  display: block; /* Изменено с flex на block */
+  display: block;
   position: relative;
   cursor: pointer;
   transition: box-shadow .25s, transform .2s;
@@ -148,8 +147,9 @@ body {
 
 /* Класс для раскрытия деталей */
 .gift-details.open {
-  max-height: 500px; /* Достаточно большое значение для раскрытия */
-  padding-top: 14px; /* Добавляем отступ сверху, когда раскрыто */
+  /* Увеличили max-height для поддержки очень длинного текста */
+  max-height: 3000px; 
+  padding-top: 14px; 
 }
 
 .gift-details h3 {
@@ -157,7 +157,7 @@ body {
   margin: 0 0 8px;
 }
 
-/* Стили для элементов внутри раскрытого блока (согласно референсу) */
+/* Стили для элементов внутри раскрытого блока */
 .details-progress {
   height: 8px;
   background: #e2e8f0;
@@ -186,11 +186,19 @@ body {
   gap: 4px;
 }
 
-/* ===== ХИТ (ИЗМЕНЕННАЯ ВЕРСИЯ - ЛИНИЯ) ===== */
+/* ===== ХИТ (ВОССТАНОВЛЕННАЯ МЕТКА) ===== */
 .hit {
-    position: absolute;
-    /* Убираем отображение самой плашки "ХИТ" */
-    display: none; 
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  z-index: 11; /* Выше, чем ::before */
+  display: block; /* Убедимся, что метка видна */
 }
 
 /* Добавляем стили для родительского элемента .gift, 
@@ -202,20 +210,16 @@ body {
 }
 
 .gift.is-hit::before {
-    content: ''; /* Обязательное свойство для псевдоэлементов */
+    content: ''; 
     position: absolute;
     top: 0; 
     left: 0;
-    /* Растягиваем псевдоэлемент на всю ширину карточки */
     width: 100%; 
-    /* Задаем толщину линии */
     height: 4px; 
-    /* Цвет линии */
-    background: var(--green, #28a745); /* Используем CSS переменную или запасной цвет */
-    /* Закругление углов сверху, чтобы соответствовать карточке */
+    background: var(--green, #28a745);
     border-top-left-radius: 18px; 
     border-top-right-radius: 18px;
-    z-index: 10; /* Убедитесь, что линия находится поверх всего */
+    z-index: 10; /* Под меткой ХИТ */
 }
 
 /* ===== МОДАЛКА (ОСТАВЛЕНА, НО НЕ ИСПОЛЬЗУЕТСЯ) ===== */
@@ -372,9 +376,10 @@ function renderPromotions(promotions) {
       logoHtml = `<div class="logo ${logoClass}">${logoText}</div>`;
     }
     
-    // Новая структура карточки с блоком деталей
+    // Обновленная структура: span.hit находится внутри .gift, но вне .gift-summary
     return `
       <div class="gift ${isHit ? 'is-hit' : ''}" data-promo-id="${promo.id}" onclick="togglePromotionDetails(${promo.id})">
+        ${isHit ? '<span class="hit">ХИТ</span>' : ''} 
         
         <div class="gift-summary">
           ${logoHtml}
@@ -423,7 +428,7 @@ async function togglePromotionDetails(promoId) {
 
       // Настройка данных по умолчанию, если их нет
       const progressValue = promo.progress_percentage || 80;
-      const usersClaimed = promo.users_claimed || (Math.floor(Math.random() * 500) + 200); // Пример заглушки
+      const usersClaimed = promo.users_claimed || (Math.floor(Math.random() * 15000) + 200); // Пример заглушки
       
       let mediaHtml = '';
       if (promo.image_file_id) {
