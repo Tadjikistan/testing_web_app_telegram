@@ -217,22 +217,31 @@ async def init_web_server():
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
-    
     web_app_url = os.getenv("WEB_APP_URL")
-    keyboard = InlineKeyboardMarkup(
+    inline_kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🎁 Открыть приложение", web_app=WebAppInfo(url=web_app_url))]
-        ],
-        resize_keyboard=True
-    )
-    
-    if is_admin(message.from_user.id):
-        keyboard.keyboard.append([KeyboardButton(text="🛠 Admin panel"), KeyboardButton(text="📊 Statistics")])
+        ]
+     )
     
     await message.answer(
-        "Добро пожаловать! Нажмите кнопку, чтобы открыть приложение и выбрать подарок.",
-        reply_markup=keyboard,
+        text="Добро пожаловать! Нажмите кнопку, чтобы открыть приложение и выбрать подарок.",
+        reply_markup=inline_kb
     )
+
+    if is_admin(message.from_user.id):
+        admin_kb = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🛠 Admin panel"), KeyboardButton(text="📊 Statistics")]
+            ],
+            resize_keyboard=True,
+            input_field_placeholder="Админ панель"
+        )
+    
+        await message.answer(
+            text="Админ-панель активирована 👇", 
+            reply_markup=admin_kb
+        )
 
 
 @router.message(F.text == "🛠 Admin panel")
