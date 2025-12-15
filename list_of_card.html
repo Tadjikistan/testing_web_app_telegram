@@ -141,15 +141,14 @@ body {
   height: 0;
   opacity: 0;
   overflow: hidden;
-  /* Анимируем высоту и прозрачность */
-  transition: height 0.4s ease-in-out, opacity 0.4s ease-in-out, padding-top 0.4s ease;
-  padding-top: 0;
+  /* Убрали padding-top из перехода, чтобы не сбивать расчет высоты */
+  transition: height 0.4s ease-in-out, opacity 0.4s ease-in-out;
 }
 
 /* Класс для раскрытия деталей */
 .gift-details.open {
   opacity: 1;
-  padding-top: 14px;
+  /* Отступы будем задавать внутри контента или добавлять к высоте в JS */
 }
 
 .gift-details h3 {
@@ -189,24 +188,29 @@ body {
 /* ===== ХИТ ===== */
 .hit {
   position: absolute;
-  top: -8px;
+  top: -10px; /* Чуть выше, чтобы сидело на рамке */
   left: 50%;
   transform: translateX(-50%);
   background: var(--green);
   color: #fff;
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 999px;
-  z-index: 11; /* Выше, чем ::before */
-  display: block; /* Убедимся, что метка видна */
+  z-index: 11;
+  display: block;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 /* Добавляем стили для родительского элемента .gift, 
    чтобы создать эффект зеленой рамки */
 .gift.is-hit {
-    /* Если карточка ХИТ, делаем верхний padding меньше, 
-       чтобы компенсировать высоту линии */
-    padding-top: 10px; 
+    /* Полная зеленая обводка */
+    border: 2px solid var(--green);
+    /* Компенсируем ширину рамки, чтобы карточка не дергалась по размеру */
+    margin: -2px; 
+    /* Чуть больше отступ сверху внутри карточки, чтобы текст не прилип к лейблу */
+    padding-top: 18px;
 }
 
 .gift.is-hit::before {
@@ -407,27 +411,24 @@ async function togglePromotionDetails(promoId) {
 
   // --- 1. Логика ЗАКРЫТИЯ ---
   if (isCurrentlyOpen) {
-    // Сначала сбрасываем высоту в 0
     detailsEl.style.height = '0px';
-    // Убираем класс прозрачности и отступа
     detailsEl.classList.remove('open');
     return;
   }
   
   // --- 2. Логика ОТКРЫТИЯ ---
   
-  // А) Закрываем все остальные открытые карточки
+  // Закрываем другие
   document.querySelectorAll('.gift-details.open').forEach(el => {
     el.style.height = '0px';
     el.classList.remove('open');
   });
 
-  // Б) Отправляем статистику просмотра (View)
+  // Отправляем статистику просмотра
   let userId = null;
   if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
     userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
   }
-  // Отправляем запрос "в тихую" (не ждем ответа, чтобы не тормозить анимацию)
   fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -435,74 +436,60 @@ async function togglePromotionDetails(promoId) {
   }).catch(err => console.error('Error tracking view:', err));
 
 
-  // В) Если контента нет — загружаем
+  // Функция для обновления высоты с запасом
+  const updateHeight = () => {
+      // scrollHeight + 20px запаса. 
+      // Это гарантирует, что нижняя кнопка и её тени не обрежутся.
+      const finalHeight = detailsEl.scrollHeight + 20; 
+      detailsEl.style.height = finalHeight + "px";
+  };
+
   if (detailsEl.innerHTML.trim() === '') {
-    // Временная заглушка, чтобы контейнер начал раскрываться
-    detailsEl.innerHTML = '<div style="text-align:center;color:#6b7280; padding:10px 0;">Загрузка...</div>';
+    // Временная заглушка
+    detailsEl.innerHTML = '<div style="padding: 20px 0; text-align: center;">Загрузка...</div>';
     detailsEl.classList.add('open');
-    // Ставим временную высоту для лоадера
-    detailsEl.style.height = detailsEl.scrollHeight + "px";
+    updateHeight(); // Раскрываем под лоадер
     
     try {
       const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
       const promo = await response.json();
 
-      const progressValue = promo.progress_percentage || 80;
-      const usersClaimed = promo.users_claimed || (Math.floor(Math.random() * 15000) + 200);
-      
       let mediaHtml = '';
       if (promo.image_file_id) {
         mediaHtml = `<img src="${API_BASE}/api/image/${promo.image_file_id}" 
           style="width:100%;border-radius:12px;margin-bottom:12px;max-height:300px;object-fit:cover;" 
-          onerror="this.style.display='none'">`;
+          onload="this.closest('.gift-details').style.height = (this.closest('.gift-details').scrollHeight + 20) + 'px'">`; 
+          // ^ Важно: пересчитываем высоту, когда картинка догрузилась!
       }
 
-      // Вставляем реальный контент
+      // Добавляем padding-top: 14px прямо в HTML-контейнер, чтобы scrollHeight его учел
       detailsEl.innerHTML = `
-        ${mediaHtml}
-        
-        <div style="font-size:12px; font-weight: 500; color: ${progressValue < 100 ? 'var(--green)' : 'var(--blue-dark)'}; margin-bottom: 4px;">
-          ${progressValue < 100 ? '🔥 Вы почти у цели! Нажмите кнопку "Получить подарок"' : '🎉 Акция завершена!'}
+        <div style="padding-top: 14px;">
+            ${mediaHtml}
+            
+            <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description}</p>
+            
+            <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">
+            Получить подарок
+            </button>
         </div>
-        <div class="details-progress">
-          <div class="details-progress-bar" style="width:${progressValue}%;"></div>
-        </div>
-
-        <div class="details-info">
-          <div class="details-users">
-            👤 ${usersClaimed.toLocaleString('ru-RU')} человек сегодня выбрали подарок
-          </div>
-          <div class="details-update">
-            ⚡️ Предложение актуально
-          </div>
-        </div>
-        
-        <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description}</p>
-        
-        <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">
-          Получить подарок
-        </button>
       `;
       
-      // === ГЛАВНЫЙ МОМЕНТ АНИМАЦИИ ===
-      // После вставки контента пересчитываем реальную высоту
-      // Добавляем padding-top (14px) к высоте контента
-      const newHeight = detailsEl.scrollHeight; 
-      detailsEl.style.height = newHeight + "px";
+      // Финальный пересчет высоты
+      updateHeight();
 
     } catch (error) {
-      console.error('Error loading details:', error);
-      detailsEl.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;">Ошибка загрузки деталей</div>';
-      detailsEl.style.height = detailsEl.scrollHeight + "px";
+      console.error('Error:', error);
+      detailsEl.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;">Ошибка</div>';
+      updateHeight();
     }
   } else {
-    // Г) Если контент уже был загружен ранее
+    // Контент уже есть
     detailsEl.classList.add('open');
-    // Просто ставим высоту равной высоте содержимого
-    detailsEl.style.height = detailsEl.scrollHeight + "px";
+    updateHeight();
   }
   
-  // Скролл к элементу
+  // Скролл
   setTimeout(() => {
     giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 400); 
