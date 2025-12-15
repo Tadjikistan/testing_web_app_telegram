@@ -138,18 +138,18 @@ body {
 
 /* ===== Скрытые Детали Акции (НОВЫЕ СТИЛИ) ===== */
 .gift-details {
-  /* Скрываем блок по умолчанию */
-  max-height: 0;
+  height: 0;
+  opacity: 0;
   overflow: hidden;
-  transition: max-height 0.4s ease-out, padding-top 0.4s ease-out;
+  /* Анимируем высоту и прозрачность */
+  transition: height 0.4s ease-in-out, opacity 0.4s ease-in-out, padding-top 0.4s ease;
   padding-top: 0;
 }
 
 /* Класс для раскрытия деталей */
 .gift-details.open {
-  /* Увеличили max-height для поддержки очень длинного текста */
-  max-height: 9000px; 
-  padding-top: 14px; 
+  opacity: 1;
+  padding-top: 14px;
 }
 
 .gift-details h3 {
@@ -402,48 +402,62 @@ function closeModal() {
 /* ===== РАСКРЫТИЕ ДЕТАЛЕЙ АКЦИИ (НОВАЯ ЛОГИКА) ===== */
 async function togglePromotionDetails(promoId) {
   const detailsEl = document.getElementById(`details-${promoId}`);
-  const isCurrentlyOpen = detailsEl.classList.contains('open');
   const giftCardEl = detailsEl.closest('.gift');
+  const isCurrentlyOpen = detailsEl.classList.contains('open');
 
-  // Если уже открыто, просто закрываем
+  // --- 1. Логика ЗАКРЫТИЯ ---
   if (isCurrentlyOpen) {
+    // Сначала сбрасываем высоту в 0
+    detailsEl.style.height = '0px';
+    // Убираем класс прозрачности и отступа
     detailsEl.classList.remove('open');
     return;
   }
   
-  // 1. Закрываем все другие открытые карточки
+  // --- 2. Логика ОТКРЫТИЯ ---
+  
+  // А) Закрываем все остальные открытые карточки
   document.querySelectorAll('.gift-details.open').forEach(el => {
+    el.style.height = '0px';
     el.classList.remove('open');
   });
 
-  // 2. Если контент еще не загружен, загружаем его
+  // Б) Отправляем статистику просмотра (View)
+  let userId = null;
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+    userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
+  }
+  // Отправляем запрос "в тихую" (не ждем ответа, чтобы не тормозить анимацию)
+  fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'view', user_id: userId})
+  }).catch(err => console.error('Error tracking view:', err));
+
+
+  // В) Если контента нет — загружаем
   if (detailsEl.innerHTML.trim() === '') {
-    // Временно показываем заглушку
+    // Временная заглушка, чтобы контейнер начал раскрываться
     detailsEl.innerHTML = '<div style="text-align:center;color:#6b7280; padding:10px 0;">Загрузка...</div>';
     detailsEl.classList.add('open');
+    // Ставим временную высоту для лоадера
+    detailsEl.style.height = detailsEl.scrollHeight + "px";
     
     try {
       const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
       const promo = await response.json();
 
-      // Настройка данных по умолчанию, если их нет
       const progressValue = promo.progress_percentage || 80;
-      const usersClaimed = promo.users_claimed || (Math.floor(Math.random() * 15000) + 200); // Пример заглушки
+      const usersClaimed = promo.users_claimed || (Math.floor(Math.random() * 15000) + 200);
       
       let mediaHtml = '';
       if (promo.image_file_id) {
-        // 1. Если есть ID картинки — показываем картинку
         mediaHtml = `<img src="${API_BASE}/api/image/${promo.image_file_id}" 
           style="width:100%;border-radius:12px;margin-bottom:12px;max-height:300px;object-fit:cover;" 
           onerror="this.style.display='none'">`;
-      } else {
-        // 2. Иначе (если картинки нет) — формируем и показываем логотип
-        const logoClass = ['green', 'blue', 'orange', 'yellow'][promoId % 4];
-        const logoText = promo.title.substring(0, 4).toUpperCase();
-        mediaHtml = `<div class="logo ${logoClass}" style="margin-bottom:12px;">${logoText}</div>`;
       }
 
-      // Генерируем HTML для раскрытого блока (с учетом референса)
+      // Вставляем реальный контент
       detailsEl.innerHTML = `
         ${mediaHtml}
         
@@ -470,22 +484,27 @@ async function togglePromotionDetails(promoId) {
         </button>
       `;
       
-      // Обеспечиваем, что блок остается открытым после загрузки
-      detailsEl.classList.add('open');
+      // === ГЛАВНЫЙ МОМЕНТ АНИМАЦИИ ===
+      // После вставки контента пересчитываем реальную высоту
+      // Добавляем padding-top (14px) к высоте контента
+      const newHeight = detailsEl.scrollHeight; 
+      detailsEl.style.height = newHeight + "px";
 
     } catch (error) {
-      console.error('Error loading promotion details:', error);
+      console.error('Error loading details:', error);
       detailsEl.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;">Ошибка загрузки деталей</div>';
+      detailsEl.style.height = detailsEl.scrollHeight + "px";
     }
   } else {
-    // 3. Если контент уже загружен, просто открываем
+    // Г) Если контент уже был загружен ранее
     detailsEl.classList.add('open');
+    // Просто ставим высоту равной высоте содержимого
+    detailsEl.style.height = detailsEl.scrollHeight + "px";
   }
   
-  // Прокрутка к открытой карточке
-  // Используем setTimeout, чтобы дать время на раскрытие (для более плавного скролла)
+  // Скролл к элементу
   setTimeout(() => {
-    giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 400); 
 }
 

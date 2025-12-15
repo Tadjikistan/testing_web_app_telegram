@@ -2,6 +2,10 @@ import asyncio
 import inspect
 import os
 
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime, time
+
 import aiofiles
 import aiohttp
 from aiohttp import web
@@ -265,6 +269,10 @@ async def stats(message: Message):
     lines.append("\nRedirect clicks:")
     for title, cnt in data["redirect_clicks"]:
         lines.append(f"- {title}: {cnt}")
+    lines.append("\n<b>👀 Card Views (All time):</b>")
+    if data["view_clicks"]:
+        for title, cnt in data["view_clicks"]:
+            lines.append(f"- {title}: {cnt}")
     await message.answer("\n".join(lines))
 
 
@@ -486,6 +494,57 @@ async def deletepromo_confirm(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
 
+async def update_google_sheet():
+    """Функция обновления таблицы (запускается раз в сутки)"""
+    try:
+        # Получаем данные из БД за вчера
+        stats_data = await db.get_daily_stats_for_export(settings.db_path)
+        
+        # Подключаемся к Google (делаем это в executor, т.к. gspread синхронный)
+        def _sync_update():
+            scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            GOOGLE_CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE")
+            GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+            creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scope=scope)
+            client = gspread.authorize(creds)
+            sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
+            
+            # Проверяем заголовки, если таблица пустая
+            if not sheet.get_all_values():
+                sheet.append_row(["Date", "New Users", "Redirect Clicks", "Promotion Clicks (Views)"])
+            
+            # Добавляем строку: Date | New Users | Redirects | Promo Clicks
+            row = [
+                stats_data["date"],
+                stats_data["new_users"],
+                stats_data["redirect_clicks"],
+                stats_data["promotion_clicks"]
+            ]
+            sheet.append_row(row)
+            return row
+
+        # Запускаем синхронный код в отдельном потоке, чтобы не блокировать бота
+        loop = asyncio.get_running_loop()
+        row_added = await loop.run_in_executor(None, _sync_update)
+        print(f"✅ Google Sheet updated: {row_added}")
+        
+    except Exception as e:
+        print(f"❌ Error updating Google Sheet: {e}")
+
+async def scheduler_task():
+    """Фоновая задача, проверяющая время"""
+    print("⏳ Scheduler started...")
+    while True:
+        now = datetime.now()
+        # Устанавливаем время отправки отчета (например, 00:05 каждый день)
+        target_time = time(0, 5) 
+        
+        # Если время совпадает (с допуском), запускаем
+        if now.time().hour == target_time.hour and now.time().minute == target_time.minute:
+            await update_google_sheet()
+            await asyncio.sleep(65) # Ждем больше минуты, чтобы не запустить дважды
+        
+        await asyncio.sleep(30) # Проверяем каждые 30 сек
 
 async def main() -> None:
     await db.init_db(settings.db_path)
@@ -496,6 +555,7 @@ async def main() -> None:
     print("Web app is running. Press Ctrl+C to stop.")
     print("Bot is ready for admin commands.")
     
+    asyncio.create_task(scheduler_task())
     # Start bot polling (this will block, but web server continues running)
     try:
         await dp.start_polling(bot)

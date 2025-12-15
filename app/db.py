@@ -257,7 +257,7 @@ async def stats(db_path: str) -> dict:
             "SELECT COUNT(*) FROM users WHERE created_at >= ?", (start.isoformat(),)
         )
         new_users = (await cursor.fetchone())[0]
-
+        #Получаем подарки
         cursor = await db.execute(
             """
             SELECT promotions.title, COUNT(promotion_clicks.id) as cnt
@@ -269,9 +269,57 @@ async def stats(db_path: str) -> dict:
             """
         )
         redirect_clicks = await cursor.fetchall()
+        cursor = await db.execute(
+            """
+            SELECT promotions.title, COUNT(promotion_clicks.id) as cnt
+            FROM promotions
+            LEFT JOIN promotion_clicks ON promotion_clicks.promotion_id = promotions.id 
+                AND promotion_clicks.action = 'view'
+            GROUP BY promotions.id
+            HAVING cnt > 0
+            ORDER BY cnt DESC
+            """
+        )
+        view_clicks = await cursor.fetchall()
 
         return {
             "new_users": new_users,
             "redirect_clicks": redirect_clicks,
+            "view_clicks": view_clicks,
         }
+#Google sheets интеграция
+async def get_daily_stats_for_export(db_path: str) -> dict:
+    """Собирает статистику за ВЧЕРАШНИЙ день для Google Sheets"""
+    # Определяем границы вчерашнего дня
+    now = dt.datetime.now(dt.timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - dt.timedelta(days=1)
+    
+    async with aiosqlite.connect(db_path) as db:
+        # 1. Новые пользователи за вчера
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE created_at >= ? AND created_at < ?", 
+            (yesterday_start.isoformat(), today_start.isoformat())
+        )
+        new_users = (await cursor.fetchone())[0]
 
+        # 2. Всего редиректов за вчера (сумма по всем акциям)
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM promotion_clicks WHERE action = 'redirect' AND clicked_at >= ? AND clicked_at < ?",
+            (yesterday_start.isoformat(), today_start.isoformat())
+        )
+        total_redirects = (await cursor.fetchone())[0]
+
+        # 3. Всего открытий карточек за вчера
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM promotion_clicks WHERE action = 'view' AND clicked_at >= ? AND clicked_at < ?",
+            (yesterday_start.isoformat(), today_start.isoformat())
+        )
+        total_views = (await cursor.fetchone())[0]
+
+        return {
+            "date": yesterday_start.strftime("%Y-%m-%d"),
+            "new_users": new_users,
+            "redirect_clicks": total_redirects,
+            "promotion_clicks": total_views
+        }
