@@ -176,17 +176,27 @@ const btnText = document.getElementById('btnText');
 const title = document.getElementById('title');
 const subtitle = document.getElementById('subtitle');
 
-const response = await fetch(`${API_BASE}/api/promotions`);
-const data = await response.json();
+
 
 const DURATION = 5*1000; // 5 minutes
-const FINAL_NUMBER = data.promotions.length;
 const start = Date.now();
 const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
+
+let FINAL_NUMBER = 102;
 let confettiInterval;
 let timeoutReached = false;
 
+async function init() {
+
+const API_BASE = window.location.origin; 
+
+const response = await fetch(`${API_BASE}/api/promotions`);
+const data = await response.json();
+
+FINAL_NUMBER = data.promotions.length;
+}
+init()
 /* ===== Рулетка ===== */
 function renderRoulette(center) {
   rouletteList.innerHTML = '';
@@ -219,7 +229,7 @@ function renderRoulette(center) {
 }
 
 const rouletteInterval = setInterval(() => {
-  renderRoulette(Math.floor(Math.random() * 100) + 1);
+  renderRoulette(Math.floor(Math.random() * FINAL_NUMBER) + 10);
 }, 80);
 
 /* ===== Прогресс ===== */
