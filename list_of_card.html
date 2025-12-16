@@ -408,14 +408,12 @@ async function togglePromotionDetails(promoId) {
   }
   
   // --- 2. Логика ОТКРЫТИЯ ---
-  
-  // Закрываем другие
   document.querySelectorAll('.gift-details.open').forEach(el => {
     el.style.height = '0px';
     el.classList.remove('open');
   });
 
-  // Отправляем статистику просмотра
+  // Отправка view (в фоне)
   let userId = null;
   if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
     userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
@@ -426,38 +424,24 @@ async function togglePromotionDetails(promoId) {
       body: JSON.stringify({action: 'view', user_id: userId})
   }).catch(err => console.error('Error tracking view:', err));
 
-
-  // Функция для обновления высоты с запасом
   const updateHeight = () => {
-      // scrollHeight + 20px запаса. 
-      // Это гарантирует, что нижняя кнопка и её тени не обрежутся.
       const finalHeight = detailsEl.scrollHeight + 20; 
       detailsEl.style.height = finalHeight + "px";
   };
 
   if (detailsEl.innerHTML.trim() === '') {
-    // Временная заглушка
     detailsEl.innerHTML = '<div style="padding: 20px 0; text-align: center;">Загрузка...</div>';
     detailsEl.classList.add('open');
-    updateHeight(); // Раскрываем под лоадер
+    updateHeight();
     
     try {
       const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
       const promo = await response.json();
 
-      let mediaHtml = '';
-      if (promo.image_file_id) {
-        mediaHtml = `<img src="${API_BASE}/api/image/${promo.image_file_id}" 
-          style="width:100%;border-radius:12px;margin-bottom:12px;max-height:300px;object-fit:cover;" 
-          onload="this.closest('.gift-details').style.height = (this.closest('.gift-details').scrollHeight + 20) + 'px'">`; 
-          // ^ Важно: пересчитываем высоту, когда картинка догрузилась!
-      }
+      // ИЗМЕНЕНИЕ: Убран блок генерации mediaHtml (картинки)
 
-      // Добавляем padding-top: 14px прямо в HTML-контейнер, чтобы scrollHeight его учел
       detailsEl.innerHTML = `
         <div style="padding-top: 14px;">
-            ${mediaHtml}
-            
             <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description}</p>
             
             <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">
@@ -466,7 +450,6 @@ async function togglePromotionDetails(promoId) {
         </div>
       `;
       
-      // Финальный пересчет высоты
       updateHeight();
 
     } catch (error) {
@@ -475,39 +458,37 @@ async function togglePromotionDetails(promoId) {
       updateHeight();
     }
   } else {
-    // Контент уже есть
     detailsEl.classList.add('open');
     updateHeight();
   }
   
-  // Скролл
   setTimeout(() => {
     giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 400); 
 }
 
-async function claimPromotion(promoId, link) {
-  try {
-    // Get user ID from Telegram WebApp if available
-    let userId = null;
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
-      userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
-    }
-    
-    // Log the redirect click
-    await fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action: 'redirect', user_id: userId})
-    });
-    
-    // Redirect to the promotion link
-    window.open(link, '_blank');
-  } catch (error) {
-    console.error('Error logging click:', error);
-    // Still redirect even if logging fails
-    window.open(link, '_blank');
+function claimPromotion(promoId, link) {
+  let userId = null;
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+    userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
   }
+  // Используем нативный метод Telegram, если доступен, он работает лучше всего
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+      window.Telegram.WebApp.openLink(link);
+  } else {
+      // Фолбэк для обычного браузера
+      window.open(link, '_blank');
+  }
+
+  // 3. Отправляем статистику в фоне (не ждем ответа через await)
+  fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: 'redirect', user_id: userId})
+  }).catch(error => {
+    // Логируем ошибку тихо, так как пользователь уже ушел по ссылке
+    console.error('Error logging click (background):', error);
+  });
 }
 
 

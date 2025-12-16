@@ -152,7 +152,7 @@ async def api_promotion_click(request):
 
 async def api_top_promotions(request):
     """GET /api/top-promotions - Get top promotions for HIT marks"""
-    top = await db.top_promotions_all_time(settings.db_path, limit=10)
+    top = await db.top_promotions_all_time(settings.db_path, limit=3)
     result = [{"id": promo_id} for promo_id, _ in top]
     return web.json_response(result)
 
