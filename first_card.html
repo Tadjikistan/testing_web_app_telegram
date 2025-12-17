@@ -206,7 +206,7 @@ function renderRoulette(center) {
   function rand() {
     let n;
     do {
-      n = Math.floor(Math.random() * 500) + 1;
+      n = Math.floor(Math.random() * 100) + 1;
     } while (used.has(n));
     used.add(n);
     return n;
