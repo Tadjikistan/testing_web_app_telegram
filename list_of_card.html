@@ -13,6 +13,9 @@
   --bg: #f3f5fb;
   --text: #111;
   --muted: #f3f5fb;
+  --page-bg: #f3f5fb;
+  --card-bg: #ffffff;
+  --card-bg-active: #f8f9fd;
 }
 
 * {
@@ -84,13 +87,29 @@ body {
 
 /* ===== КАРТОЧКА ПОДАРКА (ОБНОВЛЕНО) ===== */
 .gift {
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 18px;
   padding: 14px; 
   display: block;
   position: relative;
   cursor: pointer;
   transition: box-shadow .25s, transform .2s;
+}
+
+/* Стиль для раскрытой карточки */
+.gift.is-open {
+  background-color: #f8f9fb !important; /* Светло-серый/голубоватый оттенок */
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.02); /* Легкая внутренняя тень для объема */
+}
+
+/* Опционально: если это "ХИТ", можно оставить фон белым или сделать еще чуть выразительнее */
+.gift.is-hit.is-open {
+  background-color: #f0f7f4 !important; /* Чуть зеленоватый оттенок для открытого хита */
+}
+
+.gift.active {
+  background: var(--card-bg-active);
+  box-shadow: 0 12px 32px rgba(0,0,0,.08);
 }
 
 .gift:hover {
@@ -404,16 +423,22 @@ async function togglePromotionDetails(promoId) {
   if (isCurrentlyOpen) {
     detailsEl.style.height = '0px';
     detailsEl.classList.remove('open');
+    giftCardEl.classList.remove('is-open'); // Убираем подсветку при закрытии
     return;
   }
   
   // --- 2. Логика ОТКРЫТИЯ ---
+  // Сначала закрываем все остальные открытые карточки и убираем у них класс
   document.querySelectorAll('.gift-details.open').forEach(el => {
     el.style.height = '0px';
     el.classList.remove('open');
+    el.closest('.gift').classList.remove('is-open'); 
   });
 
-  // Отправка view (в фоне)
+  // Добавляем класс текущей карточке
+  giftCardEl.classList.add('is-open');
+
+  // Отправка статистики (в фоне)
   let userId = null;
   if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
     userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
@@ -438,20 +463,15 @@ async function togglePromotionDetails(promoId) {
       const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
       const promo = await response.json();
 
-      // ИЗМЕНЕНИЕ: Убран блок генерации mediaHtml (картинки)
-
       detailsEl.innerHTML = `
         <div style="padding-top: 14px;">
             <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description}</p>
-            
             <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">
             Получить подарок
             </button>
         </div>
       `;
-      
       updateHeight();
-
     } catch (error) {
       console.error('Error:', error);
       detailsEl.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;">Ошибка</div>';
