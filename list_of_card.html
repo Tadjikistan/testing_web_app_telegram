@@ -8,14 +8,9 @@
 <style>
 :root {
   --blue: #2430b8;
-  --blue-dark: #1a218f;
   --green: #1db46a;
   --bg: #f3f5fb;
   --text: #111;
-  --muted: #f3f5fb;
-  --page-bg: #f3f5fb;
-  --card-bg: #ffffff;
-  --card-bg-active: #f8f9fd;
 }
 
 * {
@@ -29,7 +24,7 @@ body {
   color: var(--text);
 }
 
-/* ===== СИНЯЯ ШАПКА ===== */
+/* ===== HEADER ===== */
 .header {
   background: linear-gradient(180deg, #2b38d6, var(--blue));
   color: #fff;
@@ -37,43 +32,24 @@ body {
   text-align: center;
   position: sticky;
   top: 0;
-  z-index: 1;
 }
 
-.header h1 {
-  margin: 0;
-  font-size: 22px;
-}
-
-.header p {
-  margin: 8px 0 0;
-  font-size: 14px;
-  opacity: .85;
-}
-
-/* ===== ТАЙМЕР ===== */
 .timer {
   margin-top: 16px;
   background: #fff;
   color: #111;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 500;
+  display: inline-block;
 }
 
-/* ===== БЕЛЫЙ СЛОЙ ===== */
+/* ===== CONTENT ===== */
 .content {
   margin-top: -80px;
   padding: 24px 16px 40px;
-  position: relative;
-  z-index: 2;
   background: #fff;
   border-radius: 24px 24px 0 0;
-  min-height: calc(100vh - 120px);
 }
 
 .card-list {
@@ -82,51 +58,57 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: #fff;
 }
 
-/* ===== КАРТОЧКА ПОДАРКА (ОБНОВЛЕНО) ===== */
-/* Изменяем базовый стиль карточки */
+/* ===== CARD ===== */
 .gift {
-  background: var(--card-bg);
+  background: #fafbff;
   border-radius: 18px;
-  padding: 14px; 
-  display: block;
-  position: relative;
+  padding: 14px;
   cursor: pointer;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  border: 2px solid transparent; /* Чтобы карточка не прыгала при появлении рамки ХИТа */
+  position: relative;
+
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+
+  transition: background 0.25s, box-shadow 0.25s, transform 0.25s;
 }
 
-/* Эффекты при наведении ТОЛЬКО для ПК */
-@media (hover: hover) {
+@media (hover:hover) {
   .gift:hover {
+    background: #f5f7fd;
     box-shadow: 0 12px 30px rgba(0,0,0,.12);
     transform: translateY(-2px);
   }
-  .gift:hover .gift-icon {
-    color: #2563eb;
-  }
 }
 
-/* МГНОВЕННЫЙ стиль для раскрытой карточки (для телефона и ПК) */
 .gift.is-open {
-  background-color: #f0f2f5 !important; /* Тот самый "чуть темнее" цвет */
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.03); /* Легкая внутренняя тень для глубины */
-  transform: scale(0.98); /* Небольшой эффект нажатия */
+  background: #f0f2f5;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
+  transform: scale(0.98);
 }
 
-/* Если это ХИТ и он открыт, можно сделать чуть другой оттенок */
-.gift.is-hit.is-open {
-  background-color: #ecf7f1 !important; 
-  border-color: var(--green);
+/* ===== HIT ===== */
+.gift.is-hit {
+  border: 2px solid var(--green);
+  background: #fff;
+  padding-top: 18px;
 }
 
-/* Стили для иконки внутри открытой карточки */
-.gift.is-open .gift-icon {
-  color: #2563eb;
+.hit {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
 }
 
+/* ===== SUMMARY ===== */
 .gift-summary {
   display: flex;
   align-items: center;
@@ -134,7 +116,7 @@ body {
 }
 
 .logo {
-  min-width: 92px;
+  width: 92px;
   height: 56px;
   border-radius: 12px;
   display: flex;
@@ -144,10 +126,10 @@ body {
   color: #fff;
 }
 
-.logo.green { background: #0b2f2f; }
-.logo.blue { background: #0d2d9a; }
-.logo.orange { background: #111; }
-.logo.yellow { background: #ffe031; color:#111; }
+.logo.green { background:#0b2f2f }
+.logo.blue { background:#0d2d9a }
+.logo.orange { background:#111 }
+.logo.yellow { background:#ffe031;color:#111 }
 
 .gift-title {
   font-size: 14px;
@@ -158,148 +140,44 @@ body {
   margin-left: auto;
   font-size: 20px;
   color: #cbd5e1;
-  transition: color .25s;
 }
 
-.gift:hover .gift-icon {
-  color: #2563eb;
-}
-
-/* ===== Скрытые Детали Акции (НОВЫЕ СТИЛИ) ===== */
+/* ===== DETAILS ===== */
 .gift-details {
   height: 0;
-  opacity: 0;
   overflow: hidden;
-  /* Убрали padding-top из перехода, чтобы не сбивать расчет высоты */
-  transition: height 0.4s ease-in-out, opacity 0.4s ease-in-out;
+  opacity: 0;
+  transition: height 0.35s ease, opacity 0.25s ease;
 }
 
-/* Класс для раскрытия деталей */
 .gift-details.open {
   opacity: 1;
-  /* Отступы будем задавать внутри контента или добавлять к высоте в JS */
 }
 
-.gift-details h3 {
-  font-size: 16px;
-  margin: 0 0 8px;
+/* ===== SKELETON ===== */
+.skeleton {
+  height: 14px;
+  background: linear-gradient(90deg,#eee,#f5f5f5,#eee);
+  background-size: 400% 100%;
+  animation: skeleton 1.2s infinite;
+  border-radius: 6px;
+  margin-bottom: 10px;
 }
 
-/* Стили для элементов внутри раскрытого блока */
-.details-progress {
-  height: 8px;
-  background: #f5f5f5;
-  border-radius: 4px;
-  margin: 8px 0 16px;
+@keyframes skeleton {
+  0%{background-position:100%}
+  100%{background-position:-100%}
 }
 
-.details-progress-bar {
-  height: 100%;
-  background: var(--green);
-  border-radius: 4px;
-}
-
-.details-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 16px;
-}
-
-.details-users {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* ===== ХИТ ===== */
-.hit {
-  position: absolute;
-  top: -10px; /* Чуть выше, чтобы сидело на рамке */
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--green);
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  z-index: 11;
-  display: block;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Добавляем стили для родительского элемента .gift, 
-   чтобы создать эффект зеленой рамки */
-.gift.is-hit {
-    /* Полная зеленая обводка */
-    border: 2px solid var(--green);
-    /* Компенсируем ширину рамки, чтобы карточка не дергалась по размеру */
-    margin: -2px; 
-    /* Чуть больше отступ сверху внутри карточки, чтобы текст не прилип к лейблу */
-    padding-top: 18px;
-}
-
-.gift.is-hit::before {
-    display: none;
-}
-
-/* ===== МОДАЛКА (ОСТАВЛЕНА, НО НЕ ИСПОЛЬЗУЕТСЯ) ===== */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-
-.modal.active {
-  display: flex;
-}
-
-.modal-card {
-  background: #fff;
-  width: 92%;
-  max-width: 380px;
-  max-height: 90vh;
-  border-radius: 22px;
-  overflow-y: auto;
-  padding: 16px;
-  position: relative;
-}
-
-.modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #f1f5f9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.modal h2 {
-  margin-top: 8px;
-  font-size: 18px;
-}
-
+/* ===== BUTTON ===== */
 .primary-btn {
   width: 100%;
   height: 48px;
   border-radius: 14px;
-  background: #2430b8;
+  background: var(--blue);
   color: #fff;
   border: none;
   font-weight: 600;
-  margin-top: 14px;
 }
 </style>
 </head>
@@ -307,226 +185,107 @@ body {
 <body>
 
 <header class="header">
-  <h1>Выберите (1) подарок</h1>
-  <p>У вас есть 5 минут</p>
-
-  <div class="timer" id="timer">
-    ⏱ Осталось 04:59
-  </div>
+  <h1>Выберите подарок</h1>
+  <div class="timer" id="timer">⏱ Осталось 05:00</div>
 </header>
 
 <section class="content">
-  <div class="card-list" id="cardList">
-    </div>
+  <div class="card-list" id="cardList"></div>
 </section>
 
-<div class="modal" id="modal">
-  <div class="modal-card">
-    <div class="modal-close" onclick="closeModal()">✕</div>
-    <div id="modalContent">
-      </div>
-  </div>
-</div>
-
 <script>
-// Initialize Telegram WebApp
-if (window.Telegram && window.Telegram.WebApp) {
-  window.Telegram.WebApp.ready();
-  window.Telegram.WebApp.expand();
-}
-
 const API_BASE = window.location.origin;
-
-/* ===== ТАЙМЕР ===== */
-let time = 300000; // 5 минут = 300000 мс
-const timerEl = document.getElementById('timer');
-
-const interval = setInterval(() => {
-  const minutes = Math.floor(time / 60000);
-  const seconds = Math.floor((time % 60000) / 1000);
-  const ms = Math.floor((time % 1000) / 10); // две цифры миллисекунд
-
-  const m = String(minutes).padStart(2, '0');
-  const s = String(seconds).padStart(2, '0');
-  const msStr = String(ms).padStart(2, '0');
-
-  timerEl.textContent = `⏱ Осталось ${m}:${s}.${msStr}`;
-
-  if (time <= 0) {
-    clearInterval(interval);
-  } else {
-    time -= 10;
-  }
-}, 10);
-
-/* ===== ЗАГРУЗКА КАРТОЧЕК ===== */
 let topPromotionIds = [];
 
+/* ===== TIMER ===== */
+let time = 300000;
+setInterval(()=>{
+  const m = String(Math.floor(time/60000)).padStart(2,'0');
+  const s = String(Math.floor(time%60000/1000)).padStart(2,'0');
+  document.getElementById('timer').textContent = `⏱ Осталось ${m}:${s}`;
+  time-=1000;
+},1000);
+
+/* ===== LOAD ===== */
 async function loadPromotions() {
-  try {
-    const response = await fetch(`${API_BASE}/api/promotions`);
-    const data = await response.json();
-    
-    // Get top promotions for HIT marks
-    const topResponse = await fetch(`${API_BASE}/api/top-promotions`);
-    const topData = await topResponse.json();
-    topPromotionIds = topData.map(p => p.id);
-    
-    renderPromotions(data.promotions);
-  } catch (error) {
-    console.error('Error loading promotions:', error);
-    document.getElementById('cardList').innerHTML = '<div style="text-align:center;padding:40px;color:#dbdbdb;">Ошибка загрузки подарков</div>';
-  }
+  const [p,t] = await Promise.all([
+    fetch(`${API_BASE}/api/promotions`).then(r=>r.json()),
+    fetch(`${API_BASE}/api/top-promotions`).then(r=>r.json())
+  ]);
+  topPromotionIds = t.map(x=>x.id);
+  renderPromotions(p.promotions);
 }
 
-function renderPromotions(promotions) {
-  const cardList = document.getElementById('cardList');
-  if (promotions.length === 0) {
-    cardList.innerHTML = '<div style="text-align:center;padding:40px;color:#dbdbdb;">Подарков пока нет</div>';
-    return;
-  }
-  
-  cardList.innerHTML = promotions.map(promo => {
-    const isHit = topPromotionIds.includes(promo.id);
-    const logoClass = ['green', 'blue', 'orange', 'yellow'][promo.id % 4];
-    const logoText = promo.title.substring(0, 4).toUpperCase();
-    
-    let logoHtml = '';
-    if (promo.preview_image_file_id) {
-      logoHtml = `<img src="${API_BASE}/api/image/${promo.preview_image_file_id}" 
-        style="width:92px;height:56px;border-radius:12px;object-fit:cover;" 
-        onerror="this.outerHTML='<div class=\\'logo ${logoClass}\\'>${logoText}</div>'">`;
-    } else {
-      logoHtml = `<div class="logo ${logoClass}">${logoText}</div>`;
-    }
-    
-    // Обновленная структура: span.hit находится внутри .gift, но вне .gift-summary
+function renderPromotions(promos){
+  cardList.innerHTML = promos.map(p=>{
+    const hit = topPromotionIds.includes(p.id);
+    const cls = ['green','blue','orange','yellow'][p.id%4];
     return `
-      <div class="gift ${isHit ? 'is-hit' : ''}" data-promo-id="${promo.id}" onclick="togglePromotionDetails(${promo.id})">
-        ${isHit ? '<span class="hit">ХИТ</span>' : ''} 
-        
-        <div class="gift-summary">
-          ${logoHtml}
-          <div class="gift-title">${promo.title}</div>
-          <div class="gift-icon">🎁</div>
-        </div>
-
-        <div class="gift-details" id="details-${promo.id}">
-          </div>
+    <div class="gift ${hit?'is-hit':''}" onclick="togglePromotionDetails(${p.id})">
+      ${hit?'<span class="hit">ХИТ</span>':''}
+      <div class="gift-summary">
+        <div class="logo ${cls}">${p.title.slice(0,4)}</div>
+        <div class="gift-title">${p.title}</div>
+        <div class="gift-icon">🎁</div>
       </div>
-    `;
+      <div class="gift-details" id="details-${p.id}"></div>
+    </div>`;
   }).join('');
 }
 
-/* ===== ФУНКЦИИ МОДАЛКИ (НЕ ИСПОЛЬЗУЮТСЯ, НО ОСТАВЛЕНЫ) ===== */
-function closeModal() {
-  document.getElementById('modal').classList.remove('active');
-}
+/* ===== TOGGLE ===== */
+async function togglePromotionDetails(id){
+  const d = document.getElementById(`details-${id}`);
+  const c = d.closest('.gift');
 
-/* ===== РАСКРЫТИЕ ДЕТАЛЕЙ АКЦИИ (НОВАЯ ЛОГИКА) ===== */
-async function togglePromotionDetails(promoId) {
-  const detailsEl = document.getElementById(`details-${promoId}`);
-  const giftCardEl = detailsEl.closest('.gift');
-  const isCurrentlyOpen = detailsEl.classList.contains('open');
-
-  // --- 1. Логика ЗАКРЫТИЯ ---
-  if (isCurrentlyOpen) {
-    detailsEl.style.height = '0px';
-    detailsEl.classList.remove('open');
-    giftCardEl.classList.remove('is-open'); // Убираем цвет
+  if(d.classList.contains('open')){
+    d.style.height='0px';
+    d.classList.remove('open');
+    c.classList.remove('is-open');
     return;
   }
-  
-  // --- 2. Логика ОТКРЫТИЯ ---
-  // Закрываем все остальные и убираем у них выделение цветом
-  document.querySelectorAll('.gift-details.open').forEach(el => {
-    el.style.height = '0px';
-    el.classList.remove('open');
-    el.closest('.gift').classList.remove('is-open');
+
+  document.querySelectorAll('.gift-details.open').forEach(x=>{
+    x.style.height='0px';
+    x.classList.remove('open');
+    x.closest('.gift').classList.remove('is-open');
   });
 
-  // Мгновенно подсвечиваем текущую карточку
-  giftCardEl.classList.add('is-open');
+  c.classList.add('is-open');
 
-  // Дальнейшая ваша логика (загрузка данных)...
-  let userId = null;
-  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
-    userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
+  if(d.dataset.loaded){
+    open(d,c); return;
   }
-  
-  fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action: 'view', user_id: userId})
-  }).catch(err => console.error('Error tracking view:', err));
 
-  const updateHeight = () => {
-      const finalHeight = detailsEl.scrollHeight + 20; 
-      detailsEl.style.height = finalHeight + "px";
-  };
+  d.innerHTML=`
+    <div style="padding-top:14px">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton" style="width:60%"></div>
+    </div>`;
+  d.classList.add('open');
 
-  if (detailsEl.innerHTML.trim() === '') {
-    detailsEl.innerHTML = '<div style="padding: 20px 0; text-align: center;">Загрузка...</div>';
-    detailsEl.classList.add('open');
-    updateHeight();
-    
-    try {
-      const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
-      const promo = await response.json();
-
-      detailsEl.innerHTML = `
-        <div style="padding-top: 14px;">
-            <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description}</p>
-            <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">
-            Получить подарок
-            </button>
-        </div>
-      `;
-      updateHeight();
-    } catch (error) {
-      console.error('Error:', error);
-      detailsEl.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;">Ошибка</div>';
-      updateHeight();
-    }
-  } else {
-    detailsEl.classList.add('open');
-    updateHeight();
-  }
-  
-  // Плавный скролл к карточке
-  setTimeout(() => {
-    giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 300); 
+  const promo = await fetch(`${API_BASE}/api/promotions/${id}`).then(r=>r.json());
+  d.innerHTML=`
+    <div style="padding-top:14px">
+      <p style="font-size:14px;line-height:1.5">${promo.description}</p>
+      <button class="primary-btn" onclick="window.open('${promo.link}','_blank')">
+        Получить подарок
+      </button>
+    </div>`;
+  d.dataset.loaded='1';
+  open(d,c);
 }
 
-function claimPromotion(promoId, link) {
-  let userId = null;
-  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
-    userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
-  }
-  // Используем нативный метод Telegram, если доступен, он работает лучше всего
-  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
-      window.Telegram.WebApp.openLink(link);
-  } else {
-      // Фолбэк для обычного браузера
-      window.open(link, '_blank');
-  }
-
-  // 3. Отправляем статистику в фоне (не ждем ответа через await)
-  fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({action: 'redirect', user_id: userId})
-  }).catch(error => {
-    // Логируем ошибку тихо, так как пользователь уже ушел по ссылке
-    console.error('Error logging click (background):', error);
+function open(d,c){
+  requestAnimationFrame(()=>{
+    d.style.height=d.scrollHeight+'px';
+    d.classList.add('open');
+    setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'nearest'}),350);
   });
 }
 
-
-// Load promotions on page load
 loadPromotions();
 </script>
-
 </body>
 </html>
