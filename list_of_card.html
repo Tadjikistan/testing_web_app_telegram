@@ -173,12 +173,15 @@ body {
   height: 0;
   opacity: 0;
   overflow: hidden;
+  transform: translateZ(0);
+  will-change: height, opacity;
   /* Убрали padding-top из перехода, чтобы не сбивать расчет высоты */
   transition: height 0.4s ease-in-out, opacity 0.4s ease-in-out;
 }
 
 /* Класс для раскрытия деталей */
 .gift-details.open {
+  padding-top: 14px;
   opacity: 1;
   /* Отступы будем задавать внутри контента или добавлять к высоте в JS */
 }
@@ -403,9 +406,10 @@ function renderPromotions(promotions) {
       logoHtml = `<div class="logo ${logoClass}">${logoText}</div>`;
     }
     
-    // Обновленная структура: span.hit находится внутри .gift, но вне .gift-summary
+    // ВСТАВЛЯЕМ КОНТЕНТ СРАЗУ (Скрытый)
+    // Обратите внимание: мы передаем promo.link и promo.id прямо в кнопку
     return `
-      <div class="gift ${isHit ? 'is-hit' : ''}" data-promo-id="${promo.id}" onclick="togglePromotionDetails(${promo.id})">
+      <div class="gift ${isHit ? 'is-hit' : ''}" id="gift-${promo.id}" onclick="togglePromotionDetails(${promo.id})">
         ${isHit ? '<span class="hit">ХИТ</span>' : ''} 
         
         <div class="gift-summary">
@@ -415,7 +419,13 @@ function renderPromotions(promotions) {
         </div>
 
         <div class="gift-details" id="details-${promo.id}">
-          </div>
+           <div class="gift-details-content">
+              <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description || 'Описание загружается...'}</p>
+              <button class="primary-btn" onclick="event.stopPropagation(); claimPromotion(${promo.id}, '${promo.link}')">
+                Получить подарок
+              </button>
+           </div>
+        </div>
       </div>
     `;
   }).join('');
@@ -429,29 +439,40 @@ function closeModal() {
 /* ===== РАСКРЫТИЕ ДЕТАЛЕЙ АКЦИИ (НОВАЯ ЛОГИКА) ===== */
 async function togglePromotionDetails(promoId) {
   const detailsEl = document.getElementById(`details-${promoId}`);
-  const giftCardEl = detailsEl.closest('.gift');
+  const giftCardEl = document.getElementById(`gift-${promoId}`);
+  
+  // Проверка на существование элементов
+  if (!detailsEl || !giftCardEl) return;
+
   const isCurrentlyOpen = detailsEl.classList.contains('open');
 
   // --- 1. Логика ЗАКРЫТИЯ ---
   if (isCurrentlyOpen) {
     detailsEl.style.height = '0px';
     detailsEl.classList.remove('open');
-    giftCardEl.classList.remove('is-open'); // Убираем цвет
+    giftCardEl.classList.remove('is-open');
     return;
   }
   
   // --- 2. Логика ОТКРЫТИЯ ---
-  // Закрываем все остальные и убираем у них выделение цветом
+  
+  // Закрываем другие (используем requestAnimationFrame для плавности)
   document.querySelectorAll('.gift-details.open').forEach(el => {
     el.style.height = '0px';
     el.classList.remove('open');
     el.closest('.gift').classList.remove('is-open');
   });
 
-  // Мгновенно подсвечиваем текущую карточку
+  // Открываем текущую
   giftCardEl.classList.add('is-open');
+  detailsEl.classList.add('open');
+  
+  // Вычисляем высоту контента. 
+  // scrollHeight даст точную высоту скрытого контента, который мы уже отрендерили
+  const contentHeight = detailsEl.scrollHeight;
+  detailsEl.style.height = contentHeight + "px";
 
-  // Дальнейшая ваша логика (загрузка данных)...
+
   let userId = null;
   if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
     userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
@@ -461,47 +482,18 @@ async function togglePromotionDetails(promoId) {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action: 'view', user_id: userId})
-  }).catch(err => console.error('Error tracking view:', err));
+  }).catch(err => console.error('BG Stat Error:', err));
 
-  const updateHeight = () => {
-      const finalHeight = detailsEl.scrollHeight + 20; 
-      detailsEl.style.height = finalHeight + "px";
-  };
-
-  if (detailsEl.innerHTML.trim() === '') {
-    detailsEl.innerHTML = '<div style="padding: 20px 0; text-align: center;">Загрузка...</div>';
-    detailsEl.classList.add('open');
-    updateHeight();
-    
-    try {
-      const response = await fetch(`${API_BASE}/api/promotions/${promoId}`);
-      const promo = await response.json();
-
-      detailsEl.innerHTML = `
-        <div style="padding-top: 14px;">
-            <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description}</p>
-            <button class="primary-btn" onclick="claimPromotion(${promoId}, '${promo.link}')">
-            Получить подарок
-            </button>
-        </div>
-      `;
-      updateHeight();
-    } catch (error) {
-      console.error('Error:', error);
-      detailsEl.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;">Ошибка</div>';
-      updateHeight();
-    }
-  } else {
-    detailsEl.classList.add('open');
-    updateHeight();
-  }
-  
-  // Плавный скролл к карточке
+  // Плавный скролл (небольшая задержка, чтобы клавиатура/анимация успели сработать)
   setTimeout(() => {
-    giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 300); 
+     // Проверяем, поддерживает ли браузер scrollIntoViewOptions
+     try {
+       giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+     } catch (e) {
+       giftCardEl.scrollIntoView();
+     }
+  }, 350); 
 }
-
 function claimPromotion(promoId, link) {
   let userId = null;
   if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
