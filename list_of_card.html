@@ -170,25 +170,36 @@ body {
 
 /* ===== Скрытые Детали Акции (НОВЫЕ СТИЛИ) ===== */
 .gift-details {
-  height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transform: translateZ(0);
-  will-change: height, opacity;
-  /* Убрали padding-top из перехода, чтобы не сбивать расчет высоты */
-  transition: height 0.4s ease-in-out, opacity 0.4s ease-in-out;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Убираем will-change и transform, на iOS в Webview они иногда мылят текст */
 }
 
 /* Класс для раскрытия деталей */
 .gift-details.open {
-  padding-top: 14px;
-  opacity: 1;
-  /* Отступы будем задавать внутри контента или добавлять к высоте в JS */
+  grid-template-rows: 1fr;
+}
+
+.gift-details-inner {
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.25s ease-in;
+  /* Небольшая задержка появления текста, чтобы рамка начала ехать раньше */
+  transition-delay: 0.1s; 
 }
 
 .gift-details h3 {
   font-size: 16px;
   margin: 0 0 8px;
+}
+
+.gift-details.open .gift-details-inner {
+  opacity: 1;
+}
+
+.gift-details-content-box {
+  padding-top: 14px;
 }
 
 /* Стили для элементов внутри раскрытого блока */
@@ -409,25 +420,27 @@ function renderPromotions(promotions) {
     // ВСТАВЛЯЕМ КОНТЕНТ СРАЗУ (Скрытый)
     // Обратите внимание: мы передаем promo.link и promo.id прямо в кнопку
     return `
-      <div class="gift ${isHit ? 'is-hit' : ''}" id="gift-${promo.id}" onclick="togglePromotionDetails(${promo.id})">
-        ${isHit ? '<span class="hit">ХИТ</span>' : ''} 
-        
-        <div class="gift-summary">
-          ${logoHtml}
-          <div class="gift-title">${promo.title}</div>
-          <div class="gift-icon">🎁</div>
-        </div>
+  <div class="gift ${isHit ? 'is-hit' : ''}" id="gift-${promo.id}" onclick="togglePromotionDetails(${promo.id})">
+    ${isHit ? '<span class="hit">ХИТ</span>' : ''} 
+    
+    <div class="gift-summary">
+       ${logoHtml}
+       <div class="gift-title">${promo.title}</div>
+       <div class="gift-icon">🎁</div>
+    </div>
 
-        <div class="gift-details" id="details-${promo.id}">
-           <div class="gift-details-content">
-              <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description || 'Описание загружается...'}</p>
-              <button class="primary-btn" onclick="event.stopPropagation(); claimPromotion(${promo.id}, '${promo.link}')">
-                Получить подарок
-              </button>
-           </div>
-        </div>
-      </div>
-    `;
+    <div class="gift-details" id="details-${promo.id}">
+       <div class="gift-details-inner">
+         <div class="gift-details-content-box">
+            <p style="font-size:14px; color:#111; margin:0 0 16px; line-height:1.5;">${promo.description || ''}</p>
+            <button class="primary-btn" onclick="event.stopPropagation(); claimPromotion(${promo.id}, '${promo.link}')">
+              Получить подарок
+            </button>
+         </div>
+       </div>
+    </div>
+  </div>
+`;
   }).join('');
 }
 
@@ -436,64 +449,69 @@ function closeModal() {
   document.getElementById('modal').classList.remove('active');
 }
 
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand(); // Раскрываем на весь экран
+  // Отключаем нативный свайп закрытия (опционально, для стабильности скролла)
+  // tg.enableClosingConfirmation(); 
+}
+
 /* ===== РАСКРЫТИЕ ДЕТАЛЕЙ АКЦИИ (НОВАЯ ЛОГИКА) ===== */
 async function togglePromotionDetails(promoId) {
   const detailsEl = document.getElementById(`details-${promoId}`);
   const giftCardEl = document.getElementById(`gift-${promoId}`);
-  
-  // Проверка на существование элементов
-  if (!detailsEl || !giftCardEl) return;
-
   const isCurrentlyOpen = detailsEl.classList.contains('open');
 
-  // --- 1. Логика ЗАКРЫТИЯ ---
+  // 1. Тактильная отдача (Haptic Feedback) - делает "приятно" и "быстро"
+  if (tg && tg.HapticFeedback) {
+    tg.HapticFeedback.impactOccurred('light');
+  }
+
+  // 2. Если уже открыто — закрываем
   if (isCurrentlyOpen) {
-    detailsEl.style.height = '0px';
     detailsEl.classList.remove('open');
     giftCardEl.classList.remove('is-open');
     return;
   }
   
-  // --- 2. Логика ОТКРЫТИЯ ---
-  
-  // Закрываем другие (используем requestAnimationFrame для плавности)
-  document.querySelectorAll('.gift-details.open').forEach(el => {
-    el.style.height = '0px';
-    el.classList.remove('open');
-    el.closest('.gift').classList.remove('is-open');
+  // 3. Если открываем новое — закрываем старые
+  // Используем requestAnimationFrame, чтобы браузер успел отрисовать закрытие до открытия нового
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.gift-details.open').forEach(el => {
+      el.classList.remove('open');
+      el.closest('.gift').classList.remove('is-open');
+    });
+
+    // 4. Открываем текущую (просто добавляем класс, CSS сделает остальное)
+    giftCardEl.classList.add('is-open');
+    detailsEl.classList.add('open');
   });
 
-  // Открываем текущую
-  giftCardEl.classList.add('is-open');
-  detailsEl.classList.add('open');
-  
-  // Вычисляем высоту контента. 
-  // scrollHeight даст точную высоту скрытого контента, который мы уже отрендерили
-  const contentHeight = detailsEl.scrollHeight;
-  detailsEl.style.height = contentHeight + "px";
+  // 5. Логика скролла (ОСТОРОЖНО)
+  // В TWA агрессивный скролл часто вызывает дерганье.
+  // Лучше скроллить ТОЛЬКО если элемент реально ушел за экран, и с задержкой.
+  setTimeout(() => {
+    const rect = giftCardEl.getBoundingClientRect();
+    const isInViewport = (
+        rect.top >= 0 &&
+        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
+    );
 
+    if (!isInViewport) {
+       giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, 400); // Ждем пока пройдет анимация CSS (0.35s) + небольшой запас
 
-  let userId = null;
-  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
-    userId = window.Telegram.WebApp.initDataUnsafe.user?.id;
-  }
-  
+  // 6. Аналитика
+  let userId = tg?.initDataUnsafe?.user?.id || null;
   fetch(`${API_BASE}/api/promotions/${promoId}/click`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action: 'view', user_id: userId})
-  }).catch(err => console.error('BG Stat Error:', err));
-
-  // Плавный скролл (небольшая задержка, чтобы клавиатура/анимация успели сработать)
-  setTimeout(() => {
-     // Проверяем, поддерживает ли браузер scrollIntoViewOptions
-     try {
-       giftCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-     } catch (e) {
-       giftCardEl.scrollIntoView();
-     }
-  }, 350); 
+  }).catch(console.error);
 }
+
 function claimPromotion(promoId, link) {
   let userId = null;
   if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
