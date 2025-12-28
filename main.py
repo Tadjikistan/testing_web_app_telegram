@@ -147,7 +147,9 @@ async def api_promotion_click(request):
             user_id = int(request.headers["X-Telegram-User-Id"])
         except (ValueError, TypeError):
             pass
-    
+    if user_id:
+        await db.register_user(settings.db_path, int(user_id))
+
     await db.log_promotion_click(settings.db_path, promo_id, action, user_id)
     return web.json_response({"success": True})
 
@@ -222,6 +224,9 @@ async def init_web_server():
 # ===== Bot Handlers =====
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
+    await db.register_user(settings.db_path, message.from_user.id)
+
+
     await state.clear()
     web_app_url = os.getenv("WEB_APP_URL")
     inline_kb = InlineKeyboardMarkup(
@@ -521,10 +526,10 @@ async def update_google_sheet():
 
             if not sheet.get_all_values():
                 sheet.append_row([
-                    "Date",
                     "New Users",
                     "Redirect Clicks",
-                    "Promotion Clicks"
+                    "Promotion Clicks",
+                    "Date"
                 ])
 
             row = [
